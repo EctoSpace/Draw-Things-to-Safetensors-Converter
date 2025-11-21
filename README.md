@@ -27,19 +27,19 @@ Draw Things stores AI models in a proprietary SQLite-based `.ckpt` format that i
 1. Clone this repository:
 ```bash
 git clone https://github.com/EctoSpace/Draw-Things-to-Safetensors-Converter.git
-cd draw-things-converter
+cd Draw-Things-to-Safetensors-Converter
 ```
 
 2. Install dependencies:
 ```bash
-pip install torch safetensors
+pip install -r requirements.txt
 ```
 
 Or using a virtual environment (recommended):
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install torch safetensors
+pip install -r requirements.txt
 ```
 
 ## Usage
