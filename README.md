@@ -46,54 +46,68 @@ pip install -r requirements.txt
 
 ### Basic Usage
 
-1. Place the script in the folder containing your `.ckpt` files, or configure the paths in the config file
-2. Run the converter:
+The converter uses command-line arguments for easy and flexible operation.
+
+#### Convert All Files in a Folder
+
+Scans the folder and all subfolders for `.ckpt` files and converts them in place:
+
 ```bash
-python convert_ckpt_to_safetensors.py
+python convert_ckpt_to_safetensors.py --folder "c:/models"
 ```
 
-On first run, the script creates a `converter_config.json` file with default settings.
-
-### Configuration
-
-Edit `converter_config.json` to customize the conversion:
-
-```json
-{
-    "input_folder": ".",
-    "output_folder": "./converted_safetensors",
-    "single_file": null,
-    "overwrite_existing": false
-}
+On macOS/Linux:
+```bash
+python convert_ckpt_to_safetensors.py --folder "/Users/username/Library/Containers/com.liuliu.draw-things/Data/Documents/Models"
 ```
 
-#### Configuration Options
+#### Convert a Single File
 
-- **`input_folder`**: Path to folder containing `.ckpt` files (default: current directory)
-- **`output_folder`**: Where to save converted `.safetensors` files (default: `./converted_safetensors`)
-- **`single_file`**: Filename to convert a single file, or `null` to convert all (default: `null`)
-- **`overwrite_existing`**: Set to `true` to overwrite existing `.safetensors` files (default: `false`)
+Converts a specific file, saving the `.safetensors` in the same location:
 
-### Example Configurations
+```bash
+python convert_ckpt_to_safetensors.py --file "c:/models/my_lora.ckpt"
+```
 
-**Convert all models from Draw Things to ComfyUI:**
-```json
-{
-    "input_folder": "/Users/username/Library/Containers/com.liuliu.draw-things/Data/Documents/Models",
-    "output_folder": "/Users/username/ComfyUI/models/loras",
-    "single_file": null,
-    "overwrite_existing": false
-}
+### Command-Line Options
+
+- **`--folder <path>`**: Convert all `.ckpt` files in folder (includes subfolders)
+- **`--file <path>`**: Convert a single `.ckpt` file
+- **`--overwrite`**: Overwrite existing `.safetensors` files (optional)
+- **`--remove-ckpt`**: Remove original `.ckpt` file after successful conversion (optional)
+
+**Note:** You must use either `--folder` OR `--file`, not both.
+
+### Examples
+
+**Convert all files in a folder:**
+```bash
+python convert_ckpt_to_safetensors.py --folder "c:/models"
 ```
 
 **Convert a single file:**
-```json
-{
-    "input_folder": "./draw_things_models",
-    "output_folder": "./converted",
-    "single_file": "my_lora_model_f16.ckpt",
-    "overwrite_existing": true
-}
+```bash
+python convert_ckpt_to_safetensors.py --file "c:/models/sdxl_lora.ckpt"
+```
+
+**Convert with overwrite:**
+```bash
+python convert_ckpt_to_safetensors.py --folder "c:/models" --overwrite
+```
+
+**Convert and remove original .ckpt files:**
+```bash
+python convert_ckpt_to_safetensors.py --folder "c:/models" --remove-ckpt
+```
+
+**Convert with both options:**
+```bash
+python convert_ckpt_to_safetensors.py --folder "c:/models" --overwrite --remove-ckpt
+```
+
+**Get help:**
+```bash
+python convert_ckpt_to_safetensors.py --help
 ```
 
 ## Draw Things Model Locations

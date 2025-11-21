@@ -3,47 +3,22 @@ import torch
 from safetensors.torch import save_file
 import struct
 import os
-import json
+import argparse
 from pathlib import Path
 
-# Configuration file name
-CONFIG_FILE = "converter_config.json"
-
-def load_config():
-    """Load configuration from JSON file or create default config."""
-    default_config = {
-        "input_folder": ".",  # Current directory by default
-        "output_folder": "./converted_safetensors",  # Output folder
-        "single_file": None,  # Set to a specific filename to convert only that file
-        "overwrite_existing": False  # Whether to overwrite existing .safetensors files
-    }
-    
-    if os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, 'r') as f:
-                config = json.load(f)
-                # Merge with defaults to ensure all keys exist
-                return {**default_config, **config}
-        except Exception as e:
-            print(f"Error loading config file: {e}")
-            print("Using default configuration")
-    else:
-        # Create default config file
-        with open(CONFIG_FILE, 'w') as f:
-            json.dump(default_config, f, indent=4)
-        print(f"Created default config file: {CONFIG_FILE}")
-    
-    return default_config
-
-def convert_ckpt_to_safetensors(ckpt_file, output_folder):
+def convert_ckpt_to_safetensors(ckpt_file, overwrite=False, remove_ckpt=False):
     """Convert a single Draw Things .ckpt file to .safetensors format."""
     print(f"\n{'='*60}")
     print(f"Converting: {ckpt_file}")
     print(f"{'='*60}")
     
-    # Create output filename
-    base_name = Path(ckpt_file).stem
-    output_file = os.path.join(output_folder, f"{base_name}.safetensors")
+    # Create output filename (same location as input)
+    output_file = ckpt_file.replace(".ckpt", ".safetensors")
+    
+    # Check if output already exists
+    if os.path.exists(output_file) and not overwrite:
+        print(f"⊘ Skipping - output already exists (use --overwrite to replace)")
+        return False
     
     try:
         # Connect to the SQLite database
@@ -101,75 +76,105 @@ def convert_ckpt_to_safetensors(ckpt_file, output_folder):
         
         conn.close()
         
-        # Create output directory if it doesn't exist
-        os.makedirs(output_folder, exist_ok=True)
-        
         # Save as safetensors
         print(f"Saving to {output_file}...")
         save_file(state_dict, output_file)
         print(f"✓ Successfully converted! Saved {len(state_dict)} tensors")
+        
+        # Remove original .ckpt file if requested
+        if remove_ckpt:
+            os.remove(ckpt_file)
+            print(f"🗑️  Removed original .ckpt file")
+        
         return True
         
     except Exception as e:
         print(f"✗ Error converting {ckpt_file}: {e}")
         return False
 
+def find_ckpt_files(folder_path):
+    """Recursively find all .ckpt files in folder and subfolders."""
+    ckpt_files = []
+    for root, dirs, files in os.walk(folder_path):
+        for file in files:
+            if file.endswith('.ckpt'):
+                ckpt_files.append(os.path.join(root, file))
+    return ckpt_files
+
 def main():
+    parser = argparse.ArgumentParser(
+        description='Convert Draw Things .ckpt files to .safetensors format',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Convert all .ckpt files in a folder (including subfolders)
+  python convert_ckpt_to_safetensors.py --folder "c:/models"
+  
+  # Convert a single file
+  python convert_ckpt_to_safetensors.py --file "c:/models/my_lora.ckpt"
+  
+  # Convert with overwrite and remove original
+  python convert_ckpt_to_safetensors.py --folder "c:/models" --overwrite --remove-ckpt
+        """
+    )
+    
+    # Create mutually exclusive group for --folder and --file
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--folder', type=str, help='Folder to scan for .ckpt files (includes subfolders)')
+    group.add_argument('--file', type=str, help='Single .ckpt file to convert')
+    
+    parser.add_argument('--overwrite', action='store_true', 
+                       help='Overwrite existing .safetensors files')
+    parser.add_argument('--remove-ckpt', action='store_true',
+                       help='Remove original .ckpt file after successful conversion')
+    
+    args = parser.parse_args()
+    
     print("Draw Things .ckpt to .safetensors Converter")
     print("=" * 60)
     
-    # Load configuration
-    config = load_config()
-    print(f"\nConfiguration:")
-    print(f"  Input folder: {config['input_folder']}")
-    print(f"  Output folder: {config['output_folder']}")
-    print(f"  Single file: {config['single_file'] or 'None (convert all)'}")
-    print(f"  Overwrite existing: {config['overwrite_existing']}")
-    
-    input_folder = config['input_folder']
-    output_folder = config['output_folder']
-    single_file = config['single_file']
-    overwrite = config['overwrite_existing']
-    
-    # Determine which files to convert
-    if single_file:
-        # Convert only the specified file
-        ckpt_path = os.path.join(input_folder, single_file)
-        if not os.path.exists(ckpt_path):
-            print(f"\nError: File not found: {ckpt_path}")
+    # Determine files to convert
+    if args.folder:
+        if not os.path.exists(args.folder):
+            print(f"Error: Folder not found: {args.folder}")
             return
-        files_to_convert = [ckpt_path]
-    else:
-        # Find all .ckpt files in input folder
-        files_to_convert = [
-            os.path.join(input_folder, f) 
-            for f in os.listdir(input_folder) 
-            if f.endswith('.ckpt')
-        ]
+        
+        print(f"Scanning folder: {args.folder}")
+        files_to_convert = find_ckpt_files(args.folder)
+        
+        if not files_to_convert:
+            print(f"No .ckpt files found in {args.folder}")
+            return
+        
+        print(f"Found {len(files_to_convert)} .ckpt file(s)\n")
     
-    if not files_to_convert:
-        print(f"\nNo .ckpt files found in {input_folder}")
-        return
+    else:  # args.file
+        if not os.path.exists(args.file):
+            print(f"Error: File not found: {args.file}")
+            return
+        
+        if not args.file.endswith('.ckpt'):
+            print(f"Error: File must have .ckpt extension")
+            return
+        
+        files_to_convert = [args.file]
     
-    print(f"\nFound {len(files_to_convert)} .ckpt file(s) to convert")
+    # Display options
+    print(f"Options:")
+    print(f"  Overwrite existing: {args.overwrite}")
+    print(f"  Remove .ckpt after conversion: {args.remove_ckpt}")
     
-    # Convert each file
+    # Convert files
     successful = 0
     skipped = 0
     failed = 0
     
     for ckpt_file in files_to_convert:
-        base_name = Path(ckpt_file).stem
-        output_file = os.path.join(output_folder, f"{base_name}.safetensors")
-        
-        # Check if output already exists
-        if os.path.exists(output_file) and not overwrite:
-            print(f"\nSkipping {ckpt_file} (output already exists)")
-            skipped += 1
-            continue
-        
-        if convert_ckpt_to_safetensors(ckpt_file, output_folder):
+        result = convert_ckpt_to_safetensors(ckpt_file, args.overwrite, args.remove_ckpt)
+        if result:
             successful += 1
+        elif os.path.exists(ckpt_file.replace(".ckpt", ".safetensors")):
+            skipped += 1
         else:
             failed += 1
     
@@ -181,7 +186,6 @@ def main():
     print(f"✓ Successfully converted: {successful}")
     print(f"⊘ Skipped (already exists): {skipped}")
     print(f"✗ Failed: {failed}")
-    print(f"\nConverted files saved to: {output_folder}")
 
 if __name__ == "__main__":
     main()
