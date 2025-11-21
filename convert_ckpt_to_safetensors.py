@@ -36,6 +36,19 @@ def convert_ckpt_to_safetensors(ckpt_file, overwrite=False, remove_ckpt=False):
         for idx, row in enumerate(rows):
             name, tensor_type, format_type, datatype, dim_blob, data_blob = row
             
+            # Clean up tensor name - remove Draw Things specific prefixes/suffixes
+            # Draw Things might wrap names like "__text_model__[t-8-0]__up__"
+            # We need to extract the actual parameter name
+            clean_name = name
+            if clean_name.startswith("__") and "__" in clean_name[2:]:
+                # Extract the actual name between __ markers
+                parts = clean_name.strip("_").split("__")
+                # Look for the actual parameter name (usually the middle part)
+                for part in parts:
+                    if not part.startswith("[") and part:
+                        clean_name = part
+                        break
+            
             # Parse dimensions from blob - remove trailing zeros
             if dim_blob:
                 all_dims = struct.unpack(f'{len(dim_blob)//4}i', dim_blob)
@@ -76,9 +89,10 @@ def convert_ckpt_to_safetensors(ckpt_file, overwrite=False, remove_ckpt=False):
         
         conn.close()
         
-        # Save as safetensors
+        # Save as safetensors with metadata
         print(f"Saving to {output_file}...")
-        save_file(state_dict, output_file)
+        metadata = {"format": "pt"}  # PyTorch format metadata
+        save_file(state_dict, output_file, metadata=metadata)
         print(f"✓ Successfully converted! Saved {len(state_dict)} tensors")
         
         # Remove original .ckpt file if requested
